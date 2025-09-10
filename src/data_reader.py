@@ -1,7 +1,7 @@
 import requests
 import json
 
-def get_vectors(filepath: str):
+def get_vectors(filepath: str) -> list[str]:
     with open(filepath, 'r') as vector_file:
         list_of_vectors = []
         for line in vector_file:
@@ -9,7 +9,7 @@ def get_vectors(filepath: str):
             list_of_vectors.append(new_line)
         return list_of_vectors
 
-def fetch_data(list_of_vectors: list[str], period: int = 1):
+def fetch_data(list_of_vectors: list[str], period: int = 1) -> object:
     if not list_of_vectors:
         return None
 
