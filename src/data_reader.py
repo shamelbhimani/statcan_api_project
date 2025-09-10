@@ -1,5 +1,6 @@
 import requests
 import json
+from typing import Any
 
 def get_vectors(filepath: str) -> list[str]:
     with open(filepath, 'r') as vector_file:
@@ -20,8 +21,30 @@ def fetch_data(list_of_vectors: list[str], period: int = 1) -> object:
     response = requests.post(url, headers=headers, data=json.dumps(payload))
     return response.json()
 
+def extract_data(api_response: object) -> list[Any] | dict[Any, Any]:
+    if not api_response:
+        return []
+
+    extracted_data = {}
+    for item in api_response:
+        if (isinstance(item, dict) and item.get('status') == 'SUCCESS' and
+                'object' in item):
+            data_point_upper = item['object']
+            data_point_lower = data_point_upper['vectorDataPoint']
+
+            data_dict = {'vectorId': data_point_upper['vectorId']}
+            for subitem in data_point_lower:
+                sub_data_dict = {'refPerRaw': subitem.get('refPerRaw'),
+                                 'value': subitem.get('value')}
+                data_dict['rawData'] = sub_data_dict
+
+            extracted_data['productId'] = data_point_upper.get('productId')
+            extracted_data['tableData'] = data_dict
+
+    return extracted_data
 try:
+    wanted = ['productId', 'vectorId', 'refPerRaw', 'value']
     vectors = get_vectors('../info/vectors.txt')
-    fetch_data(vectors, 1)
+    print(extract_data(fetch_data(vectors, 2)))
 except Exception as e:
     print(e)
