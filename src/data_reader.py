@@ -16,8 +16,8 @@ def fetch_data(list_of_vectors: list[str], period: int = 1):
     url = f'https://www150.statcan.gc.ca/t1/wds/rest/getDataFromVectorsAndLatestNPeriods'
     payload = [{'vectorId': v, 'latestN': period} for v in list_of_vectors]
     headers = {'Content-Type': 'application/json'}
+
     response = requests.post(url, headers=headers, data=json.dumps(payload))
-    print(response.json())
     return response.json()
 
 try:
