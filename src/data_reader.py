@@ -25,8 +25,9 @@ def extract_data(api_response: object) -> list[Any] | dict[Any, Any]:
     if not api_response:
         return []
 
-    extracted_data = {}
+    final_list = []
     for item in api_response:
+        extracted_data = {}
         if (isinstance(item, dict) and item.get('status') == 'SUCCESS' and
                 'object' in item):
             data_point_upper = item['object']
@@ -38,13 +39,12 @@ def extract_data(api_response: object) -> list[Any] | dict[Any, Any]:
                                  'value': subitem.get('value')}
                 data_dict['rawData'] = sub_data_dict
 
-            extracted_data['productId'] = data_point_upper.get('productId')
-            extracted_data['tableData'] = data_dict
+            extracted_data[data_point_upper.get('productId')] = data_dict
+        final_list.append(extracted_data)
+    return final_list
 
-    return extracted_data
 try:
-    wanted = ['productId', 'vectorId', 'refPerRaw', 'value']
     vectors = get_vectors('../info/vectors.txt')
-    print(extract_data(fetch_data(vectors, 2)))
+    print(extract_data(fetch_data(vectors, 1)))
 except Exception as e:
     print(e)
