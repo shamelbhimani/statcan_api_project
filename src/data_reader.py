@@ -30,13 +30,10 @@ def extract_data(api_response: list) -> dict[Any, Any]:
     for item in api_response:
         if (isinstance(item, dict) and item.get('status') == 'SUCCESS' and
                 'object' in item):
-            data_point_upper = item['object']
-            data_point_lower = data_point_upper['vectorDataPoint']
-
-            data_dict = {'vectorId': data_point_upper['vectorId']}
+            data_dict = {'vectorId': item['object']['vectorId']}
             sub_data_dict = {}
 
-            for subitem in data_point_lower:
+            for subitem in item['object']['vectorDataPoint']:
                 sub_data_dict.update({str(subitem.get('refPerRaw')):
                     subitem.get(
                     'value')})
@@ -44,11 +41,11 @@ def extract_data(api_response: list) -> dict[Any, Any]:
             data_dict['rawData'] = sort_dictionary(sub_data_dict,
                                                    ascending=False)
 
-            if data_point_upper.get('productId') in extracted_data.keys():
-                extracted_data[data_point_upper.get('productId')].append(
+            if item['object'].get('productId') in extracted_data.keys():
+                extracted_data[item['object'].get('productId')].append(
                     data_dict)
             else:
-                extracted_data.update({data_point_upper.get('productId'):
+                extracted_data.update({item['object'].get('productId'):
                                        [data_dict]})
 
     return extracted_data
