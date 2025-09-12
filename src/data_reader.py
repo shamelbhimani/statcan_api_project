@@ -10,7 +10,7 @@ def get_vectors(filepath: str) -> list[str]:
             list_of_vectors.append(new_line)
         return list_of_vectors
 
-def fetch_data(list_of_vectors: list[str], period: int = 1) -> object:
+def fetch_data(list_of_vectors: list[str], period: int = 1) -> list | None:
     if not list_of_vectors:
         return None
 
@@ -21,7 +21,7 @@ def fetch_data(list_of_vectors: list[str], period: int = 1) -> object:
     response = requests.post(url, headers=headers, data=json.dumps(payload))
     return response.json()
 
-def extract_data(api_response: object) -> list[Any] | dict[Any, Any]:
+def extract_data(api_response: list) -> list[Any] | dict[Any, Any]:
     if not api_response:
         return []
 
@@ -34,10 +34,12 @@ def extract_data(api_response: object) -> list[Any] | dict[Any, Any]:
             data_point_lower = data_point_upper['vectorDataPoint']
 
             data_dict = {'vectorId': data_point_upper['vectorId']}
+            sub_data_dict = {}
             for subitem in data_point_lower:
-                sub_data_dict = {'refPerRaw': subitem.get('refPerRaw'),
-                                 'value': subitem.get('value')}
-                data_dict['rawData'] = sub_data_dict
+                sub_data_dict.update({str(subitem.get('refPerRaw')):
+                    subitem.get(
+                    'value')})
+            data_dict['rawData'] = sub_data_dict
 
             extracted_data[data_point_upper.get('productId')] = data_dict
         final_list.append(extracted_data)
@@ -45,6 +47,6 @@ def extract_data(api_response: object) -> list[Any] | dict[Any, Any]:
 
 try:
     vectors = get_vectors('../info/vectors.txt')
-    print(extract_data(fetch_data(vectors, 1)))
+    print(extract_data(fetch_data(vectors, 2)))
 except Exception as e:
     print(e)
