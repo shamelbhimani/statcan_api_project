@@ -6,8 +6,7 @@ def get_vectors(filepath: str) -> list[str]:
     with open(filepath, 'r') as vector_file:
         list_of_vectors = []
         for line in vector_file:
-            new_line = line.replace('v', '').strip()
-            list_of_vectors.append(new_line)
+            list_of_vectors.append(line.replace('v', '').strip())
         return list_of_vectors
 
 def fetch_data(list_of_vectors: list[str], period: int = 1) -> list | None:
