@@ -21,13 +21,13 @@ def fetch_data(list_of_vectors: list[str], period: int = 1) -> list | None:
     response = requests.post(url, headers=headers, data=json.dumps(payload))
     return response.json()
 
-def extract_data(api_response: list) -> list[Any] | dict[Any, Any]:
+def extract_data(api_response: list) -> dict[Any, Any]:
     if not api_response:
-        return []
+        return {}
 
-    final_list = []
+    extracted_data = {}
+
     for item in api_response:
-        extracted_data = {}
         if (isinstance(item, dict) and item.get('status') == 'SUCCESS' and
                 'object' in item):
             data_point_upper = item['object']
@@ -35,15 +35,32 @@ def extract_data(api_response: list) -> list[Any] | dict[Any, Any]:
 
             data_dict = {'vectorId': data_point_upper['vectorId']}
             sub_data_dict = {}
+
             for subitem in data_point_lower:
                 sub_data_dict.update({str(subitem.get('refPerRaw')):
                     subitem.get(
                     'value')})
-            data_dict['rawData'] = sub_data_dict
 
-            extracted_data[data_point_upper.get('productId')] = data_dict
-        final_list.append(extracted_data)
-    return final_list
+            data_dict['rawData'] = sort_dictionary(sub_data_dict,
+                                                   ascending=False)
+
+            if data_point_upper.get('productId') in extracted_data.keys():
+                extracted_data[data_point_upper.get('productId')].append(
+                    data_dict)
+            else:
+                extracted_data.update({data_point_upper.get('productId'):
+                                       [data_dict]})
+
+    return extracted_data
+
+def sort_dictionary(dictionary: dict[str, Any],
+                    ascending:bool = True) -> dict[str, Any] | None:
+    if ascending:
+        return dict(sorted(dictionary.items(), key=lambda item: item[0]))
+    elif not ascending:
+        return dict(sorted(dictionary.items(), key=lambda item: item[0],
+                           reverse=True))
+    return None
 
 try:
     vectors = get_vectors('../info/vectors.txt')
