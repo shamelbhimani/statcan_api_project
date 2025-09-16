@@ -21,16 +21,17 @@ def load_vector_definitions(path: str) -> Dict[str, str]:
                     parts.append(current_part)
 
                 if len(parts) == 2:
-                    vector_id, definition = parts
-                    if definition.startswith('"') and definition.endswith('"'):
-                        definition = definition[1:-1]
-                    definitions[vector_id.strip()] = definition
+                    a, b = parts
+                    if b.startswith('"') and b.endswith('"'):
+                        b = b[1:-1]
+                    definitions[int(a.strip().replace("v", ""))] = b
                 else:
                     print(f'Skipping malformed line {line}')
 
     except FileNotFoundError:
         print(f'File {path} not found')
     return definitions
+
 
 
 try:
