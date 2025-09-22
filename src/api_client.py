@@ -4,13 +4,12 @@ import json
 from typing import Any
 
 class APIClient:
-    url = f'https://www150.statcan.gc.ca/t1/wds/rest/getDataFromVectorsAndLatestNPeriods'
-
     def __init__(self, config_path: str = '../config/config.ini') -> None:
         self.config_path = config_path
         self.config = configparser.ConfigParser()
         self.config.read(self.config_path)
         self.api_response = None
+        self.url = f'https://www150.statcan.gc.ca/t1/wds/rest/getDataFromVectorsAndLatestNPeriods'
         self.extracted_data = {}
 
     def _get_vectors(self) -> list[str]:
