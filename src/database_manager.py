@@ -129,7 +129,9 @@ class DatabaseManager:
                       date: str,
                       value: float,
                       is_new: bool = True) -> None:
-        logging.info(f"Adding value {value} to vector {vector_id} of table"
+        logging.info(f"Adding value {value} at date {date} to vector"
+                     f" {vector_id} of "
+                     f"table"
                      f" {table_name}")
         query = f'''
                 UPDATE `{table_name}`
