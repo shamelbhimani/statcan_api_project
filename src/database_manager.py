@@ -155,7 +155,7 @@ class DatabaseManager:
             if not self._values_match(table_name, vector_id, date, value):
                 self._update_value(table_name, vector_id, date, value,
                                    is_new = True)
-            elif self._values_match(table_name, vector_id, date, value):
+            else:
                 self._update_value(table_name, vector_id, date,
                                  value, is_new=False)
 
