@@ -1,4 +1,5 @@
-from typing import Optional, List, Dict
+#FILE NOW REDUNDANT FOR THIS REPOSITORY. WILL BE FORKED FOR OTHER PROJECT!
+"""from typing import Optional, List, Dict
 
 class VectorID:
     def __init__(self, vector_id: int, product_id: int, definition: str):
@@ -41,3 +42,4 @@ class ProductID:
         return (f"Table Number = {self.product_id}, "
                 f"definition={self.definition}, "
                 f"roots={len(self.roots)}")
+"""
