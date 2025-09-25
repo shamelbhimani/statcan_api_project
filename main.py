@@ -1,5 +1,6 @@
 from src.api_client import APIClient
 from src.definitions_fetcher import get_definitions
+from src.database_manager import run_process
 
 
 def main():
@@ -8,10 +9,9 @@ def main():
                        "data from: "))
     api_client.run(period)
     data = api_client.extracted_data
-
     definitions = get_definitions('config/config.ini')
 
-    update_database(data, definitions) #Needs to be implemented
+    run_process(data, definitions, 'config/secrets.ini')
 
 if __name__ == '__main__':
     main()
