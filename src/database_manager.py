@@ -63,3 +63,41 @@ class DatabaseManager:
         ''', (vector_id,))
         current_value = self.cursor.fetchone()[0]
         return current_value == value
+
+    def _create_table(self, table_name: str,
+                      definition: str = None) -> None:
+        if not self._table_exists(table_name):
+            logging.info(f"Creating table {table_name} for {definition}")
+            self.cursor.execute(f"""
+                CREATE TABLE `{table_name}` (
+                    vector_id BIGINT NOT NULL PRIMARY KEY,
+                    definition TEXT
+                ) COMMENT = `{definition}`
+                                """)
+
+    def _add_vector(self, table_name: str,
+                    vector_id: int,
+                    definition: str = None) -> None:
+        if not self._vector_exists(table_name, vector_id):
+            logging.info(f"Adding vector {vector_id} to table {table_name}")
+            self.cursor.execute(f"""
+                INSERT INTO `{table_name}` (vector_id, definition)` VALUES (
+                %s, %s)""", (vector_id, definition))
+
+    def _add_column(self, table_name:
+    str, date: str):
+        if not self._column_exists(table_name, date):
+            logging.info(f"Adding column {date} to table {table_name}")
+            self.cursor.execute(f"""
+                ALTER TABLE `{table_name}` ADD COLUMN `{date}` FLOAT
+                                """)
+
+    def _update_value(self, table_name: str,
+                   vector_id: int,
+                   date: str,
+                   value: float) -> None:
+        if not self._values_match(table_name, vector_id, date, value):
+            logging.info(f"Adding value {value} to table {table_name}")
+            self.cursor.execute(f"""
+                UPDATE `{table_name}` SET `{date}` = %s WHERE vector_id = %s
+                                """, (value, vector_id))
