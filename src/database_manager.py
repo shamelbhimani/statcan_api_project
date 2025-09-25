@@ -42,7 +42,7 @@ class DatabaseManager:
     def _table_exists(self,
                       table_name: str) -> bool:
         query = f'''
-                SHOW TABLES LIKE {table_name}
+                SHOW TABLES LIKE '{table_name}'
                 '''
         self.cursor.execute(query)
         return self.cursor.fetchone() is not None
@@ -52,7 +52,7 @@ class DatabaseManager:
                        vector_id: int) -> bool:
         query = f'''
                 SELECT vector_id
-                FROM {table_name}
+                FROM `{table_name}`
                     WHERE vector_id = %s
                 '''
         self.cursor.execute(query, (vector_id,))
@@ -78,7 +78,7 @@ class DatabaseManager:
         date_column = f'`{date}`'
         query = f'''
                 SELECT {date_column} 
-                FROM {table_name}
+                FROM `{table_name}`
                     WHERE vector_id = %s
                 '''
         self.cursor.execute(query, (vector_id,))
@@ -91,7 +91,7 @@ class DatabaseManager:
             logging.info(f"Creating table {table_name} for {definition}")
             definition = definition.replace("'", "''")
             query = f'''
-                    CREATE TABLE {table_name} (
+                    CREATE TABLE `{table_name}` (
                     vector_id BIGINT NOT NULL PRIMARY KEY,
                     definition TEXT )
                         COMMENT = %s
@@ -107,7 +107,7 @@ class DatabaseManager:
         logging.info(f"Adding vector {vector_id} to table {table_name}")
         params = (vector_id, definition)
         query = f'''
-                INSERT INTO {table_name}
+                INSERT INTO `{table_name}`
                     (vector_id, definition) VALUES (%s, %s)
                 '''
         self.cursor.execute(query, params)
@@ -117,10 +117,10 @@ class DatabaseManager:
     str, date: str):
         logging.info(f"Adding column {date} to table {table_name}")
         query = f'''
-                ALTER TABLE {table_name}
-                    ADD COLUMN {date} TEXT
+                ALTER TABLE `{table_name}`
+                    ADD COLUMN `{date}` FLOAT
                 '''
-        self.cursor.execute(query, (date,))
+        self.cursor.execute(query)
         self.stats["columns_added"] += 1
 
     def _update_value(self,
@@ -129,10 +129,11 @@ class DatabaseManager:
                       date: str,
                       value: float,
                       is_new: bool = True) -> None:
-        logging.info(f"Adding value {value} to table {table_name}")
+        logging.info(f"Adding value {value} to vector {vector_id} of table"
+                     f" {table_name}")
         query = f'''
-                UPDATE {table_name}
-                SET {date} = %s
+                UPDATE `{table_name}`
+                SET `{date}` = %s
                     WHERE vector_id = %s
                 '''
         self.cursor.execute(query, (value, vector_id))
@@ -181,6 +182,7 @@ class DatabaseManager:
         logging.info(f"Tables Created: {self.stats['tables_created']}")
         logging.info(f"Vectors Added: {self.stats['vectors_added']}")
         logging.info(f"Columns Added: {self.stats['columns_added']}")
+        logging.info(f"Values Added: {self.stats['values_added']}")
         logging.info(f"Values Updated: {self.stats['values_updated']}")
         logging.info("=-=-=-=-= End =-=-=-=-=")
 
