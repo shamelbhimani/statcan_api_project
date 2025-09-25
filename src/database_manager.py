@@ -41,23 +41,34 @@ class DatabaseManager:
 
     def _table_exists(self,
                       table_name: str) -> bool:
-        self.cursor.execute(f"SHOW TABLES LIKE '{table_name}'")
+        query = '''
+                SHOW TABLES LIKE '{table_name}'
+                '''
+        self.cursor.execute(query)
         return self.cursor.fetchone() is not None
 
     def _vector_exists(self,
                        table_name: str,
                        vector_id: int) -> bool:
-        self.cursor.execute(f'SELECT vector_id FROM `{table_name}` WHERE '
-                            f'vector_id = %s', (vector_id,))
+        query = '''
+                SELECT vector_id
+                FROM '{table_name}'
+                    WHERE vector_id = %s
+                '''
+        self.cursor.execute(query, (vector_id,))
         return self.cursor.fetchone() is not None
 
     def _column_exists(self,
                             table_name: str,
                             date: str) -> bool:
-        self.cursor.execute(f'''
-            SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE 
-            TABLE_NAME = `{table_name}` AND COLUMN_NAME = `{date}`
-            ''')
+        query = '''
+            SELECT COUNT(*) 
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_NAME = %s AND 
+            COLUMN_NAME = %s 
+            '''
+
+        self.cursor.execute(query, (table_name, date))
         return self.cursor.fetchone()[0] > 0
 
     def _values_match(self, table_name: str,
@@ -65,9 +76,12 @@ class DatabaseManager:
                       date: str,
                       value: float) -> bool:
         date_column = f'`{date}`'
-        self.cursor.execute(f'''
-            SELECT {date_column} FROM `{table_name}` WHERE vector_id = %s
-        ''', (vector_id,))
+        query = '''
+                SELECT {date_column} 
+                FROM '{table_name}'
+                    WHERE vector_id = %s
+                '''
+        self.cursor.execute(query, (vector_id,))
         current_value = self.cursor.fetchone()[0]
         return current_value == value
 
@@ -76,12 +90,13 @@ class DatabaseManager:
         if not self._table_exists(table_name):
             logging.info(f"Creating table {table_name} for {definition}")
             definition = definition.replace("'", "''")
-            self.cursor.execute(f"""
-                CREATE TABLE `{table_name}` (
+            query = '''
+                    CREATE TABLE '{table_name}' (
                     vector_id BIGINT NOT NULL PRIMARY KEY,
-                    definition TEXT
-                ) COMMENT = '{definition}'
-                                """)
+                    definition TEXT )
+                        COMMENT = %s
+                    '''
+            self.cursor.execute(query, (definition,))
             self.stats["tables_created"] += 1
         else:
             logging.info(f"Table {table_name} already exists")
@@ -91,17 +106,21 @@ class DatabaseManager:
                     definition: str = None) -> None:
         logging.info(f"Adding vector {vector_id} to table {table_name}")
         params = (vector_id, definition)
-        query = (f"INSERT INTO `{table_name}` "
-                 f"(vector_id, definition) VALUES (%s, %s)")
+        query = '''
+                INSERT INTO '{table_name}'
+                    (vector_id, definition) VALUES (%s, %s)
+                '''
         self.cursor.execute(query, params)
         self.stats["vectors_added"] += 1
 
     def _add_column(self, table_name:
     str, date: str):
         logging.info(f"Adding column {date} to table {table_name}")
-        self.cursor.execute(f"""
-            ALTER TABLE `{table_name}` ADD COLUMN `{date}` FLOAT
-                            """)
+        query = '''
+                ALTER TABLE '{table_name}'
+                    ADD COLUMN {date} TEXT
+                '''
+        self.cursor.execute(query, (date,))
         self.stats["columns_added"] += 1
 
     def _update_value(self,
@@ -111,9 +130,12 @@ class DatabaseManager:
                       value: float,
                       is_new: bool = True) -> None:
         logging.info(f"Adding value {value} to table {table_name}")
-        self.cursor.execute(f"""
-            UPDATE `{table_name}` SET `{date}` = %s WHERE vector_id = %s
-                            """, (value, vector_id))
+        query = '''
+                UPDATE '{table_name}'
+                SET {date} = %s
+                    WHERE vector_id = %s
+                '''
+        self.cursor.execute(query, (value, vector_id))
 
         if not is_new:
             self.stats["values_updated"] += 1
