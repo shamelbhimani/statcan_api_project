@@ -14,6 +14,7 @@ class DatabaseManager:
             "tables_created": 0,
             "vectors_added": 0,
             "columns_added": 0,
+            "values_added": 0,
             "values_updated": 0,
         }
         try:
@@ -74,11 +75,12 @@ class DatabaseManager:
                       definition: str = None) -> None:
         if not self._table_exists(table_name):
             logging.info(f"Creating table {table_name} for {definition}")
+            definition = definition.replace("'", "''")
             self.cursor.execute(f"""
                 CREATE TABLE `{table_name}` (
                     vector_id BIGINT NOT NULL PRIMARY KEY,
                     definition TEXT
-                ) COMMENT = `{definition}`
+                ) COMMENT = '{definition}'
                                 """)
             self.stats["tables_created"] += 1
         else:
@@ -88,9 +90,10 @@ class DatabaseManager:
                     vector_id: int,
                     definition: str = None) -> None:
         logging.info(f"Adding vector {vector_id} to table {table_name}")
-        self.cursor.execute(f"""
-            INSERT INTO `{table_name}` (vector_id, definition)` VALUES (
-            %s, %s)""", (vector_id, definition))
+        params = (vector_id, definition)
+        query = (f"INSERT INTO `{table_name}` "
+                 f"(vector_id, definition) VALUES (%s, %s)")
+        self.cursor.execute(query, params)
         self.stats["vectors_added"] += 1
 
     def _add_column(self, table_name:
@@ -101,15 +104,21 @@ class DatabaseManager:
                             """)
         self.stats["columns_added"] += 1
 
-    def _update_value(self, table_name: str,
-                   vector_id: int,
-                   date: str,
-                   value: float) -> None:
+    def _update_value(self,
+                      table_name: str,
+                      vector_id: int,
+                      date: str,
+                      value: float,
+                      is_new: bool = True) -> None:
         logging.info(f"Adding value {value} to table {table_name}")
         self.cursor.execute(f"""
             UPDATE `{table_name}` SET `{date}` = %s WHERE vector_id = %s
                             """, (value, vector_id))
-        self.stats["values_updated"] += 1
+
+        if not is_new:
+            self.stats["values_updated"] += 1
+        else:
+            self.stats["values_added"] += 1
 
     def _process_series(self,
                         table_name: str,
@@ -119,8 +128,13 @@ class DatabaseManager:
             if not self._column_exists(table_name, date):
                 self._add_column(table_name, date)
 
+
             if not self._values_match(table_name, vector_id, date, value):
-                self._update_value(table_name, vector_id, date, value)
+                self._update_value(table_name, vector_id, date, value,
+                                   is_new = True)
+            elif self._values_match(table_name, vector_id, date, value):
+                self._update_value(table_name, vector_id, date,
+                                 value, is_new=False)
 
     def _process_vector(self,
                         table_name: str,
@@ -128,8 +142,17 @@ class DatabaseManager:
                         series: dict[str, float],
                         definitions: dict[int, str]) -> None:
         if not self._vector_exists(table_name, vector_id):
-            vector_definition = definitions.get(vector_id, 'N/A')
-            self._add_vector(table_name, vector_id, vector_definition)
+            vector_definition = definitions.get(vector_id, 'No Definition')
+            if vector_definition == 'No Definition':
+                logging.info(f"No definition for {vector_id}")
+            else:
+                logging.info(f"Vector definition found for {vector_id}:"
+                             f" {vector_definition}")
+            self._add_vector(table_name=table_name, vector_id=vector_id,
+                             definition=vector_definition)
+
+        self._process_series(table_name=table_name, vector_id=vector_id,
+                             series=series)
 
     def _log_stats(self) -> None:
         logging.info("=-=-=-=-= Summary of Process =-=-=-=-=")
@@ -144,22 +167,28 @@ class DatabaseManager:
                         definitions: dict[int, str]) -> None:
         for product_id, vectors in data.items():
             table_name = f'{product_id}'
-            product_definition = definitions.get(product_id, 'N/A')
+            product_definition = definitions.get(product_id, 'No Definition')
+            if product_definition == 'No Definition':
+                logging.info(f"No definition found for product {product_id}")
+            else:
+                logging.info(f"Product {product_id} definition found: "
+                             f"{product_definition}")
             self._create_table(table_name, product_definition)
 
             for vector_id, series in vectors.items():
-                self._process_series(table_name, vector_id, series, definitions)
+                self._process_vector(table_name, vector_id, series, definitions)
 
         self._conn.commit()
         logging.info("Database updates completed.")
         self._log_stats()
 
 def run_process(data: dict[int, Any],
-                definitions: dict[int, str]) -> None:
+                definitions: dict[int, str],
+                database_config_path: str) -> None:
     try:
-        db = DatabaseManager()
-        db._update_database(data, definitions)
-        db._close_connection()
+        db = DatabaseManager(database_config_path)
+        db.update_database(data, definitions)
+        db.close_connection()
     except mysql.connector.Error as err:
-        logging.error(f"A critical error occured in the database manager:"
+        logging.error(f"A critical error occurred in the database manager:"
                       f" {err}")
