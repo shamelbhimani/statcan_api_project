@@ -42,7 +42,7 @@ class APIClient:
         payload = [{'vectorId': v, 'latestN': period} for v in list_of_vectors]
         headers = {'Content-Type': 'application/json'}
 
-        logging.info(f'Fetching data for {len(list_of_vectors)} from'
+        logging.info(f'Fetching data for {len(list_of_vectors)} '
                      f'for the latest {period} months from {self.url}...')
         try:
             response = requests.post(self.url, headers=headers, data=json.dumps(
