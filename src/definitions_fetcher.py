@@ -14,9 +14,9 @@ def get_definitions(config_path: str = '../config/config.ini') -> dict[Any,
         logging.info(f'Config read at path {config_path} successfully.')
 
     try:
-        path1 = config.get('paths', 'vectors_definitions_file')
+        path1 = config.get('path', 'vectors_definitions_file')
         logging.info(f'Vectors definitions file at {path1} read successfully.')
-        path2 = config.get('paths', 'table_definitions_file')
+        path2 = config.get('path', 'table_definitions_file')
         logging.info(f'Table definitions file at {path2} read successfully.')
     except (configparser.NoSectionError, configparser.NoOptionError) as e:
         logging.error(f'Configuration error at {config_path}: {e}')
