@@ -18,6 +18,7 @@ def main():
     logging.info("Application started...")
     try:
         api_client = APIClient('config/config.ini')
+        period = None
         try:
             period = int(input("Enter the period of the period you wish to extract "
                                "data from: "))
