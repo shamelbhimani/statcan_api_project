@@ -60,7 +60,7 @@ def get_definitions(config_path: str = '../config/config.ini') -> dict[Any,
         except FileNotFoundError:
             logging.info(f'Error: File {path} not found.')
         except Exception as e:
-            logging.error(f'An unexpected error ocurred while reading {path}: '
+            logging.error(f'An unexpected error occurred while reading {path}: '
                           f'{e}')
     logging.info(f'Finished fetching definitions. Found {len(definitions)} '
                  f'definitions.')
