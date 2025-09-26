@@ -6,7 +6,6 @@ project serves as an 'Extract, Transform, Load' project for my resume, as
 well as a proof-of-concept for a future API-wrapper project that simplifies 
 the process of extracting data from Statistics Canada for academic analysis.
 
-***
 
 ## Features
 
@@ -21,7 +20,7 @@ the process of extracting data from Statistics Canada for academic analysis.
 * **Configuration-driven**: Utilizes configuration files for easy management 
   of API endpoints, database credentials, and file paths.
 
-***
+
 
 ## Setup and Usage
 
