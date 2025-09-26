@@ -22,6 +22,7 @@ class DatabaseManager:
             "vectors_added": 0,
             "columns_added": 0,
             "values_added": 0,
+            "values_updated": 0
         }
 
         try:
