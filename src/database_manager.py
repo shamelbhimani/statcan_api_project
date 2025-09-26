@@ -3,20 +3,27 @@ import mysql.connector
 import logging
 from typing import Any
 
-logging.basicConfig(level=logging.INFO)
-
 class DatabaseManager:
     def __init__(self,
                  database_config_path: str = '../config/secrets.ini') -> None:
         config = configparser.ConfigParser()
-        config.read(database_config_path)
+        try:
+            config.read(database_config_path)
+            logging.info('Database configuration completed.')
+        except FileNotFoundError:
+            logging.error(f'Database configuration file not found at path:'
+                          f' {database_config_path}.')
+        except (configparser.NoSectionError, configparser.NoOptionError) as e:
+            logging.error(f'Database configuration error at path:'
+                          f' {database_config_path}: {e}')
+
         self.stats = {
             "tables_created": 0,
             "vectors_added": 0,
             "columns_added": 0,
             "values_added": 0,
-            "values_updated": 0,
         }
+
         try:
             self._conn = mysql.connector.connect(
                 host=config.get('mysql', 'host'),
@@ -25,10 +32,15 @@ class DatabaseManager:
                 database=config.get('mysql', 'database')
             )
             self.cursor = self._conn.cursor()
-            logging.info("MySQL connection established")
+            logging.info(f"MySQL connection established to "
+                         f"{config.get('mysql', 'database')}")
+            logging.info(f'Logged in as {config.get('mysql', 'user')}')
         except mysql.connector.Error as err:
             logging.error(f"Error connecting to MySQL: {err}")
             raise
+        except (configparser.NoSectionError, configparser.NoOptionError) as e:
+            logging.error(f'Configuration error at path '
+                          f'{database_config_path}: {e}')
 
     def close_connection(self) -> None:
         if self._conn is not None:
@@ -36,7 +48,8 @@ class DatabaseManager:
             self._conn.close()
             logging.info("MySQL connection closed")
         else:
-            logging.info("No connection exists")
+            logging.info(f"Attempted to close a non-existent or already "
+                         f"closed connection.")
             raise
 
     def _table_exists(self,
@@ -88,7 +101,8 @@ class DatabaseManager:
     def _create_table(self, table_name: str,
                       definition: str = None) -> None:
         if not self._table_exists(table_name):
-            logging.info(f"Creating table {table_name} for {definition}")
+            logging.info(f"Creating table {table_name} with definition: "
+                         f"{definition}")
             definition = definition.replace("'", "''")
             query = f'''
                     CREATE TABLE `{table_name}` (
@@ -98,41 +112,39 @@ class DatabaseManager:
                     '''
             self.cursor.execute(query, (definition,))
             self.stats["tables_created"] += 1
+            logging.info(f"Table {table_name} created.")
         else:
-            logging.info(f"Table {table_name} already exists")
+            logging.info(f"Table {table_name} already exists. Skipping "
+                         f"creation...")
 
     def _add_vector(self, table_name: str,
                     vector_id: int,
                     definition: str = None) -> None:
-        logging.info(f"Adding vector {vector_id} to table {table_name}")
+        logging.info(f"Adding vector {vector_id} to table {table_name}...")
         params = (vector_id, definition)
         query = f'''
                 INSERT INTO `{table_name}`
                     (vector_id, definition) VALUES (%s, %s)
                 '''
         self.cursor.execute(query, params)
+        logging.info(f'Vector added.')
         self.stats["vectors_added"] += 1
 
     def _add_column(self, table_name:
     str, date: str):
-        logging.info(f"Adding column {date} to table {table_name}")
         query = f'''
                 ALTER TABLE `{table_name}`
                     ADD COLUMN `{date}` FLOAT
                 '''
         self.cursor.execute(query)
+        logging.info(f'Column added.')
         self.stats["columns_added"] += 1
 
     def _update_value(self,
                       table_name: str,
                       vector_id: int,
                       date: str,
-                      value: float,
-                      is_new: bool = True) -> None:
-        logging.info(f"Adding value {value} at date {date} to vector"
-                     f" {vector_id} of "
-                     f"table"
-                     f" {table_name}")
+                      value: float) -> None:
         query = f'''
                 UPDATE `{table_name}`
                 SET `{date}` = %s
@@ -140,26 +152,32 @@ class DatabaseManager:
                 '''
         self.cursor.execute(query, (value, vector_id))
 
-        if not is_new:
-            self.stats["values_updated"] += 1
-        else:
-            self.stats["values_added"] += 1
-
     def _process_series(self,
                         table_name: str,
                         vector_id: int,
                         series: dict[str, float]) -> None:
         for date, value in series.items():
             if not self._column_exists(table_name, date):
+                logging.debug(f'Column {date} does not exist.')
                 self._add_column(table_name, date)
-
-
-            if not self._values_match(table_name, vector_id, date, value):
-                self._update_value(table_name, vector_id, date, value,
-                                   is_new = True)
+                logging.debug(f"Adding column {date} to table {table_name}.")
+                self._update_value(table_name, vector_id, date, value)
+                self.stats["values_added"] += 1
+                logging.debug(f"Value '{value}' added to column {date} in "
+                              f"table {table_name} at vector {vector_id}.")
             else:
-                self._update_value(table_name, vector_id, date,
-                                 value, is_new=False)
+                logging.debug(f"Column {date} already exists in table "
+                              f"{table_name}.")
+                if not self._values_match(table_name, vector_id, date, value):
+                    self._update_value(table_name, vector_id, date, value)
+                    self.stats["values_updated"] += 1
+                    logging.debug(f"Value '{value}' updated on column {date} "
+                                  f"in table {table_name} at vector"
+                                  f" {vector_id}.")
+                else:
+                    logging.debug(f'Value for vector {vector_id} on {date} '
+                                  f'already matches. No update required. '
+                                  f'Skipping...')
 
     def _process_vector(self,
                         table_name: str,
@@ -175,22 +193,25 @@ class DatabaseManager:
                              f" {vector_definition}")
             self._add_vector(table_name=table_name, vector_id=vector_id,
                              definition=vector_definition)
-
+            logging.debug(f"Adding vector {vector_id} to table {table_name}.")
         self._process_series(table_name=table_name, vector_id=vector_id,
                              series=series)
+        logging.debug(f"Series added to table {table_name} at vector"
+                      f" {vector_id}.")
 
     def _log_stats(self) -> None:
         logging.info("=-=-=-=-= Summary of Process =-=-=-=-=")
-        logging.info(f"Tables Created: {self.stats['tables_created']}")
-        logging.info(f"Vectors Added: {self.stats['vectors_added']}")
-        logging.info(f"Columns Added: {self.stats['columns_added']}")
-        logging.info(f"Values Added: {self.stats['values_added']}")
-        logging.info(f"Values Updated: {self.stats['values_updated']}")
-        logging.info("=-=-=-=-= End =-=-=-=-=")
+        logging.info(f"Tables Created:      {self.stats['tables_created']}")
+        logging.info(f"Vectors Added:       {self.stats['vectors_added']}")
+        logging.info(f"Columns Added:       {self.stats['columns_added']}")
+        logging.info(f"Values Added:        {self.stats['values_added']}")
+        logging.info(f"Values Updated:       {self.stats['values_updated']}")
+        logging.info("=-=-=-=-=-=-=-=-= End =-=-=-=-=-=-=-=-=")
 
     def update_database(self,
                         data: dict[int, Any],
                         definitions: dict[int, str]) -> None:
+        logging.info(f'Starting database update...')
         for product_id, vectors in data.items():
             table_name = f'{product_id}'
             product_definition = definitions.get(product_id, 'No Definition')
@@ -211,10 +232,18 @@ class DatabaseManager:
 def run_process(data: dict[int, Any],
                 definitions: dict[int, str],
                 database_config_path: str) -> None:
+    db = None
     try:
         db = DatabaseManager(database_config_path)
         db.update_database(data, definitions)
         db.close_connection()
     except mysql.connector.Error as err:
-        logging.error(f"A critical error occurred in the database manager:"
+        logging.critical(f"A critical error occurred in the database manager:"
                       f" {err}")
+        if db and db._conn.is_connected():
+            db._conn.rollback()
+            logging.info("Database transactions was rolled back.")
+    finally:
+        if db:
+            db.close_connection()
+        logging.info("Database update process completed.")
