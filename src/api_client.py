@@ -5,7 +5,22 @@ import logging
 from typing import Any
 
 class APIClient:
+    """
+    Class object for interacting with the Statistics Canada Web Data Service
+    (API).
+
+    This class handles the construction of request URLs, execution of HTTP
+    requests, and parsing of JSON responses into Python objects.
+    """
     def __init__(self, config_path: str = '../config/config.ini') -> None:
+        """
+        Initialize the APIClient instance.
+
+        :param config_path: Path to the configuration file.
+
+        :except configparser.Error: Raises an exception if there was an
+        unexpected error.
+        """
         self.config_path = config_path
         self.config = configparser.ConfigParser()
         self.api_response = None
@@ -19,6 +34,17 @@ class APIClient:
             logging.error(f'Config file {self.config_path} could not be read.')
 
     def _get_vectors(self) -> list[str]:
+        """
+        Reads vector IDs from a file specified in the configuration file.
+
+        :return: A list of vector IDs.
+
+        :except FileNotFoundError: Raises an exception if no file was found at
+        specified path.
+        :except (configparser.NoSectionError, configparser.NoOptionError):
+        Raises an exception if no section or no option was found in the
+        config file.
+        """
         try:
             vector_path = self.config.get('path', 'vectors_file')
             logging.info(f'Reading vectors from {vector_path}')
@@ -35,6 +61,17 @@ class APIClient:
             return []
 
     def _fetch_data(self, list_of_vectors: list[str], period: int = 1) -> None:
+        """
+        Fetches data from the Statistics Canada Web Data Service (API) based
+        on the provided list of vector IDs and periods.
+
+        :param list_of_vectors: A list of vector IDs whose data is to be
+        fetched.
+        :param period: Number of months of data to be fetched.
+
+        :except requests.exceptions.RequestException: Raises an exception if
+        the API requests fails.
+        """
         if not list_of_vectors:
             logging.warning('Vector list is empty. Skipping API call...')
             return None
@@ -56,6 +93,9 @@ class APIClient:
             return None
 
     def _extract_data(self) -> None:
+        """
+        Extracts data from the API response object.
+        """
         if not self.api_response:
             logging.warning('No response from API. Skipping API call...')
             return None
@@ -99,6 +139,14 @@ class APIClient:
     @staticmethod
     def _sort_dictionary(dictionary: dict[str, Any],
                         ascending:bool = True) -> dict[str, Any] | None:
+        """
+        Sorts dictionary keys by ascending order.
+
+        :param dictionary: A dictionary to be sorted.
+        :param ascending: Boolean value indicating whether to sort in
+        ascending order or not.
+        :return: A dictionary sorted by keys.
+        """
         if ascending:
             return dict(sorted(dictionary.items(), key=lambda item: item[0]))
         elif not ascending:
@@ -107,6 +155,11 @@ class APIClient:
         return None
 
     def run(self, period: int = 1) -> None:
+        """
+        Runs the API client call to fetch and extract data.
+
+        :param period: Number of months of data to be fetched.
+        """
         logging.info('Starting API communication process...')
         list_of_vectors = self._get_vectors()
         self._fetch_data(list_of_vectors, period=period)
