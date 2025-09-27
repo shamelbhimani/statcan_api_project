@@ -4,8 +4,25 @@ import logging
 from typing import Any
 
 class DatabaseManager:
+    """
+    A class object to manage the MySQL database, including establishing and
+    closing connections, creating tables, and inserting and updating tables.
+    """
     def __init__(self,
                  database_config_path: str = '../config/secrets.ini') -> None:
+        """
+        Initializes the DatabaseManager object.
+
+        :param database_config_path: Path to the database configuration file.
+
+        :except FileNotFoundError: Raises an exception if the database
+        configuration file does not exist at the specified path.
+        :except (configparser.NoSectionError, configparser.NoOptionError):
+        Raises an exception if there is no section or option in the database
+        configuration file.
+        :except mysql.connector.Error: Raises an exception if an error occurs
+        while connecting to the database.
+        """
         config = configparser.ConfigParser()
         try:
             config.read(database_config_path)
@@ -44,17 +61,29 @@ class DatabaseManager:
                           f'{database_config_path}: {e}')
 
     def close_connection(self) -> None:
+        """
+        Closes the connection to the database.
+
+        :raise Raises a warning if connection could not be closed due to a
+        non-existent connection or if the connection was already closed.
+        """
         if self._conn is not None:
             self.cursor.close()
             self._conn.close()
-            logging.info("MySQL connection closed")
+            logging.debug("MySQL connection closed")
         else:
-            logging.info(f"Attempted to close a non-existent or already "
+            logging.warning(f"Attempted to close a non-existent or already "
                          f"closed connection.")
             raise
 
     def _table_exists(self,
                       table_name: str) -> bool:
+        """
+        Checks the database to see if the specified table exists.
+
+        :param table_name: Name of the table to check.
+        :return: Bool indicating if the specified table exists.
+        """
         query = f'''
                 SHOW TABLES LIKE '{table_name}'
                 '''
@@ -64,6 +93,14 @@ class DatabaseManager:
     def _vector_exists(self,
                        table_name: str,
                        vector_id: int) -> bool:
+        """
+        Checks the database to see if the specified vector exists in the
+        specified table.
+
+        :param table_name: Name of the table to check.
+        :param vector_id: ID of the vector to check.
+        :return: Bool indicating if the specified vector exists.
+        """
         query = f'''
                 SELECT vector_id
                 FROM `{table_name}`
@@ -73,8 +110,16 @@ class DatabaseManager:
         return self.cursor.fetchone() is not None
 
     def _column_exists(self,
-                            table_name: str,
-                            date: str) -> bool:
+                       table_name: str,
+                       date: str) -> bool:
+        """
+        Checks the database to see if the specified column exists in the
+        specified table.
+
+        :param table_name: Name of the table to check.
+        :param date: Name of the column to check.
+        :return: Bool indicating if the specified column exists.
+        """
         query = f'''
             SELECT COUNT(*) 
             FROM INFORMATION_SCHEMA.COLUMNS 
@@ -85,10 +130,22 @@ class DatabaseManager:
         self.cursor.execute(query, (table_name, date))
         return self.cursor.fetchone()[0] > 0
 
-    def _values_match(self, table_name: str,
+    def _values_match(self,
+                      table_name: str,
                       vector_id: int,
                       date: str,
                       value: float) -> bool:
+        """
+        Checks the database to see if the specified value exists in the
+        specified table at the specified vector ID row at the specified date
+        column.
+
+        :param table_name: Name of the table to check.
+        :param vector_id: ID of the vector to check.
+        :param date: Name of the column to check.
+        :param value: Value to check.
+        :return: Bool indicating if the specified value exists.
+        """
         date_column = f'`{date}`'
         query = f'''
                 SELECT {date_column} 
@@ -99,8 +156,15 @@ class DatabaseManager:
         current_value = self.cursor.fetchone()[0]
         return current_value == value
 
-    def _create_table(self, table_name: str,
+    def _create_table(self,
+                      table_name: str,
                       definition: str = None) -> None:
+        """
+        Create a table with the specified definition.
+
+        :param table_name: Name of the table to create.
+        :param definition: Table definition.
+        """
         if not self._table_exists(table_name):
             logging.info(f"Creating table {table_name} with definition: "
                          f"{definition}")
@@ -118,9 +182,17 @@ class DatabaseManager:
             logging.info(f"Table {table_name} already exists. Skipping "
                          f"creation...")
 
-    def _add_vector(self, table_name: str,
+    def _add_vector(self,
+                    table_name: str,
                     vector_id: int,
                     definition: str = None) -> None:
+        """
+        Add a vector and its definition to the specified table.
+
+        :param table_name: Name of the table to open.
+        :param vector_id: ID of the vector to add.
+        :param definition: Vector definition.
+        """
         logging.info(f"Adding vector {vector_id} to table {table_name}...")
         params = (vector_id, definition)
         query = f'''
@@ -131,8 +203,16 @@ class DatabaseManager:
         logging.info(f'Vector added.')
         self.stats["vectors_added"] += 1
 
-    def _add_column(self, table_name:
-    str, date: str):
+    def _add_column(self,
+                    table_name: str,
+                    date: str) -> None:
+        """
+        Add a date column to the specified table
+
+        :param table_name: Name of the table to open.
+        :param date: Column to add.
+        :return:
+        """
         query = f'''
                 ALTER TABLE `{table_name}`
                     ADD COLUMN `{date}` FLOAT
@@ -146,6 +226,15 @@ class DatabaseManager:
                       vector_id: int,
                       date: str,
                       value: float) -> None:
+        """
+        Value to update or add into the specified table, at the specified
+        vector row, at the specified date column.
+
+        :param table_name: Name of the table to update.
+        :param vector_id: ID of the vector to update.
+        :param date: Name of the column to update.
+        :param value: Value to update.
+        """
         query = f'''
                 UPDATE `{table_name}`
                 SET `{date}` = %s
@@ -157,6 +246,13 @@ class DatabaseManager:
                         table_name: str,
                         vector_id: int,
                         series: dict[str, float]) -> None:
+        """
+        Process series data in the specified table at the specified vector ID.
+
+        :param table_name: Name of the table to open.
+        :param vector_id: ID of the vector to open.
+        :param series: Series to process.
+        """
         for date, value in series.items():
             if not self._column_exists(table_name, date):
                 logging.debug(f'Column {date} does not exist.')
@@ -185,6 +281,14 @@ class DatabaseManager:
                         vector_id: int,
                         series: dict[str, float],
                         definitions: dict[int, str]) -> None:
+        """
+        Process the specified vector data in the specified table.
+
+        :param table_name: Name of the table to open.
+        :param vector_id: ID of the vector to process.
+        :param series: Series to process.
+        :param definitions: Definition of vector.
+        """
         if not self._vector_exists(table_name, vector_id):
             vector_definition = definitions.get(vector_id, 'No Definition')
             if vector_definition == 'No Definition':
@@ -201,17 +305,29 @@ class DatabaseManager:
                       f" {vector_id}.")
 
     def _log_stats(self) -> None:
+        """
+        Log statistics about the processed data.
+        :return:
+        """
         logging.info("=-=-=-=-= Summary of Process =-=-=-=-=")
         logging.info(f"Tables Created:      {self.stats['tables_created']}")
         logging.info(f"Vectors Added:       {self.stats['vectors_added']}")
         logging.info(f"Columns Added:       {self.stats['columns_added']}")
         logging.info(f"Values Added:        {self.stats['values_added']}")
-        logging.info(f"Values Updated:       {self.stats['values_updated']}")
+        logging.info(f"Values Updated:      {self.stats['values_updated']}")
         logging.info("=-=-=-=-=-=-=-=-= End =-=-=-=-=-=-=-=-=")
 
     def update_database(self,
                         data: dict[int, Any],
                         definitions: dict[int, str]) -> None:
+        """
+        Function to update the database with the specified data and
+        definitions.
+
+        :param data: A dictionary containing the data to be updated.
+        :param definitions: A dictionary containing the definitions of tables
+        and vectors.
+        """
         logging.info(f'Starting database update...')
         for product_id, vectors in data.items():
             table_name = f'{product_id}'
@@ -233,6 +349,17 @@ class DatabaseManager:
 def run_process(data: dict[int, Any],
                 definitions: dict[int, str],
                 database_config_path: str) -> None:
+    """
+    Secondary to main.py. Function to process the data.
+
+    :param data: Data to be processed.
+    :param definitions: A dictionary containing the definitions of tables
+    and vectors.
+    :param database_config_path: Path to the database configuration file.
+
+    :except mysql.connector.Error: Raises a critical error if an error occurs in
+    the process. Database connection will be rolled back.
+    """
     db = None
     try:
         db = DatabaseManager(database_config_path)
