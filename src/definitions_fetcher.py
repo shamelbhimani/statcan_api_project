@@ -5,8 +5,22 @@ import logging
 
 def get_definitions(config_path: str = '../config/config.ini') -> dict[Any,
                                                                         Any]:
+    """
+    Fetches definitions of a collection of vectors from a .csv file specified at
+    the path in the config file.
+
+    :param config_path: Path to the configuration file.
+    :return: A dictionary of vector IDs and their associated definitions.
+
+    :except (configparser.NoSectionError, configparser.NoOptionError): Raises an
+    exception if no section or option exists in the configuration file.
+    :except FileNotFoundError: Raises an exception if no configuration file
+    exists at the specified path.
+    :except Exception: Raises an exception if an exception occurs while
+    reading the file at the specified path.
+    """
     if not os.path.exists(config_path):
-        logging.info(f'Config file {config_path} does not exist.')
+        logging.warning(f'Config file {config_path} does not exist.')
         config = None
     else:
         config = configparser.ConfigParser()
@@ -58,7 +72,7 @@ def get_definitions(config_path: str = '../config/config.ini') -> dict[Any,
                                         f'at {line}: Does not have two parts '
                                         f'separated by a comma.')
         except FileNotFoundError:
-            logging.info(f'Error: File {path} not found.')
+            logging.error(f'Error: File {path} not found.')
         except Exception as e:
             logging.error(f'An unexpected error occurred while reading {path}: '
                           f'{e}')
