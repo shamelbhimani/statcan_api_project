@@ -158,7 +158,8 @@ class APIClient:
         """
         Runs the API client call to fetch and extract data.
 
-        :param period: Number of months of data to be fetched.
+        :param period: Number of months of data to be fetched. Defaults to
+        latest 1 month.
         """
         logging.info('Starting API communication process...')
         list_of_vectors = self._get_vectors()
