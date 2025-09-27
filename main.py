@@ -4,8 +4,17 @@ from src.api_client import APIClient
 from src.definitions_fetcher import get_definitions
 from src.database_manager import run_process
 
-
 def main():
+    """
+    The main function of the program. Extracts data from the Statistics
+    Canada Web Data Service (API), transforms it into a simpler format for
+    efficiency, and Loads it into a MySQL database (ETL).
+
+    :except ValueError: Raises an error if period input is not an integer and
+    prompts the user to input an integer.
+    :except Exception: Raises an exception if an unknown error occurs in the
+    process.
+    """
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(module)s.%(funcName)s - %("
