@@ -24,7 +24,7 @@ class APIClient:
         self.config_path = config_path
         self.config = configparser.ConfigParser()
         self.api_response = None
-        self.url = f'https://www150.statcan.gc.ca/t1/wds/rest/getDataFromVectorsAndLatestNPeriods'
+        self.url = 'https://www150.statcan.gc.ca/t1/wds/rest/getDataFromVectorsAndLatestNPeriods'
         self.extracted_data = {}
         try:
             self.config.read(self.config_path)
@@ -86,7 +86,7 @@ class APIClient:
                 payload))
             response.raise_for_status()
             self.api_response = response.json()
-            logging.info(f'API response fetched successfully.')
+            logging.info('API response fetched successfully.')
             return self.api_response
         except requests.exceptions.RequestException as e:
             logging.error(f'API request failed: {e}')
@@ -100,7 +100,7 @@ class APIClient:
             logging.warning('No response from API. Skipping API call...')
             return None
 
-        logging.info(f'Extracting data from API response...')
+        logging.info('Extracting data from API response...')
         extracted_count = 0
         skipped_count = 0
         for item in self.api_response:
