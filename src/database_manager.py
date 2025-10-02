@@ -72,8 +72,8 @@ class DatabaseManager:
             self._conn.close()
             logging.debug("MySQL connection closed")
         else:
-            logging.warning(f"Attempted to close a non-existent or already "
-                         f"closed connection.")
+            logging.warning("Attempted to close a non-existent or already "
+                         "closed connection.")
             raise
 
     def _table_exists(self,
@@ -120,7 +120,7 @@ class DatabaseManager:
         :param date: Name of the column to check.
         :return: Bool indicating if the specified column exists.
         """
-        query = f'''
+        query = '''
             SELECT COUNT(*) 
             FROM INFORMATION_SCHEMA.COLUMNS 
             WHERE TABLE_NAME = %s AND 
@@ -200,7 +200,7 @@ class DatabaseManager:
                     (vector_id, definition) VALUES (%s, %s)
                 '''
         self.cursor.execute(query, params)
-        logging.info(f'Vector added.')
+        logging.info('Vector added.')
         self.stats["vectors_added"] += 1
 
     def _add_column(self,
@@ -218,7 +218,7 @@ class DatabaseManager:
                     ADD COLUMN `{date}` FLOAT
                 '''
         self.cursor.execute(query)
-        logging.info(f'Column added.')
+        logging.info('Column added.')
         self.stats["columns_added"] += 1
 
     def _update_value(self,
@@ -328,7 +328,7 @@ class DatabaseManager:
         :param definitions: A dictionary containing the definitions of tables
         and vectors.
         """
-        logging.info(f'Starting database update...')
+        logging.info('Starting database update...')
         for product_id, vectors in data.items():
             table_name = f'{product_id}'
             product_definition = definitions.get(product_id, 'No Definition')

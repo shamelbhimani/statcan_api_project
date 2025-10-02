@@ -44,7 +44,7 @@ def main():
                              f"process.")
             return
         if not definitions:
-            logging.warning(f'Definitions file might be empty or missing...')
+            logging.warning('Definitions file might be empty or missing...')
 
         run_process(data, definitions, '../config/secrets.ini')
     except Exception as e:
