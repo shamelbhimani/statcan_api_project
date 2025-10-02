@@ -1,7 +1,7 @@
 [project]
 name = "statcan-api-project"
 version = "0.1.0"
-description = "Add your description here"
+description = "An ETL project that fetches data drom the Statistics Canada API, processes it, and stores it in a MySQL Database."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []
