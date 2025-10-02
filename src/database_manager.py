@@ -345,7 +345,7 @@ class DatabaseManager:
 
 
 def run_process(
-    data: dict[int, Any], definitions: dict[int, str], database_config_path: str
+    data: dict[int, Any], definitions: dict[int, str], database_config_path: Path
 ) -> None:
     """
     Secondary to main.py. Function to process the data.
