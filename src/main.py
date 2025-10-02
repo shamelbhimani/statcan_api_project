@@ -20,13 +20,13 @@ def main():
         format="%(asctime)s - %(levelname)s - %(module)s.%(funcName)s - %("
                "message)s",
         handlers=[
-            logging.FileHandler("app.log", mode="w"),
+            logging.FileHandler("../app.log", mode="w"),
             logging.StreamHandler(sys.stdout)
         ]
     )
     logging.info("Application started...")
     try:
-        api_client = APIClient('config/config.ini')
+        api_client = APIClient('../config/config.ini')
         period = None
         try:
             period = int(input("Enter the period of the period you wish to extract "
@@ -37,7 +37,7 @@ def main():
 
         api_client.run(period)
         data = api_client.extracted_data
-        definitions = get_definitions('config/config.ini')
+        definitions = get_definitions('../config/config.ini')
 
         if not data:
             logging.critical(f"No data found for period {period}. Aborting "
@@ -46,7 +46,7 @@ def main():
         if not definitions:
             logging.warning(f'Definitions file might be empty or missing...')
 
-        run_process(data, definitions, 'config/secrets.ini')
+        run_process(data, definitions, '../config/secrets.ini')
     except Exception as e:
         logging.critical(f'An unhandled exception occurred: {e}')
     finally:
