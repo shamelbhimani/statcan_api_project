@@ -2,6 +2,7 @@ import configparser
 import mysql.connector
 import logging
 from typing import Any
+from pathlib import Path
 
 
 class DatabaseManager:
@@ -10,7 +11,7 @@ class DatabaseManager:
     closing connections, creating tables, and inserting and updating tables.
     """
 
-    def __init__(self, database_config_path: str = "../config/secrets.ini") -> None:
+    def __init__(self, database_config_path: Path) -> None:
         """
         Initializes the DatabaseManager object.
 

@@ -1,10 +1,9 @@
 import configparser
-from typing import Any
 from pathlib import Path
 import logging
 
 
-def get_definitions(config_path: str = "../config/config.ini") -> dict[Any, Any]:
+def get_definitions(config_path: Path) -> dict[int, str]:
     """
     Fetches definitions of a collection of vectors from a .csv file specified at
     the path in the config file.
