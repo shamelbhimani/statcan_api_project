@@ -1,10 +1,10 @@
 import configparser
-import os
 from typing import Any
+from pathlib import Path
 import logging
 
-def get_definitions(config_path: str = '../config/config.ini') -> dict[Any,
-                                                                        Any]:
+
+def get_definitions(config_path: str = "../config/config.ini") -> dict[Any, Any]:
     """
     Fetches definitions of a collection of vectors from a .csv file specified at
     the path in the config file.
@@ -19,21 +19,21 @@ def get_definitions(config_path: str = '../config/config.ini') -> dict[Any,
     :except Exception: Raises an exception if an exception occurs while
     reading the file at the specified path.
     """
-    if not os.path.exists(config_path):
-        logging.warning(f'Config file {config_path} does not exist.')
+    if not Path(config_path).exists():
+        logging.warning(f"Config file {config_path} does not exist.")
         config = None
     else:
         config = configparser.ConfigParser()
         config.read(config_path)
-        logging.info(f'Config read at path {config_path} successfully.')
+        logging.info(f"Config read at path {config_path} successfully.")
 
     try:
-        path1 = config.get('path', 'vectors_definitions_file')
-        logging.info(f'Vectors definitions file at {path1} read successfully.')
-        path2 = config.get('path', 'table_definitions_file')
-        logging.info(f'Table definitions file at {path2} read successfully.')
+        path1 = config.get("path", "vectors_definitions_file")
+        logging.info(f"Vectors definitions file at {path1} read successfully.")
+        path2 = config.get("path", "table_definitions_file")
+        logging.info(f"Table definitions file at {path2} read successfully.")
     except (configparser.NoSectionError, configparser.NoOptionError) as e:
-        logging.error(f'Configuration error at {config_path}: {e}')
+        logging.error(f"Configuration error at {config_path}: {e}")
         path1 = None
         path2 = None
 
@@ -42,40 +42,43 @@ def get_definitions(config_path: str = '../config/config.ini') -> dict[Any,
 
     for path in list_of_paths:
         try:
-            with open(path, 'r') as file:
-                logging.info(f'Reading file at {path} successfully.')
+            with Path(path).open("r") as file:
+                logging.info(f"Reading file at {path} successfully.")
                 for line in file:
                     line = line.strip()
                     if not line:
-                        logging.info(f'Empty line at {path}. Skipping...')
+                        logging.info(f"Empty line at {path}. Skipping...")
                         continue
-                    parts = line.split(',', 1)
+                    parts = line.split(",", 1)
                     if len(parts) == 2:
-                        if parts[0].startswith('v'):
-                            key_str = parts[0].replace('v',
-                                                       '').strip()
+                        if parts[0].startswith("v"):
+                            key_str = parts[0].replace("v", "").strip()
                             value_str = parts[1].strip().strip('"')
                         else:
-                            key_str = parts[0].replace('-',
-                                                       '').strip()
+                            key_str = parts[0].replace("-", "").strip()
                             value_str = parts[1].strip().strip('"')
                         try:
                             definitions[int(key_str)] = value_str
-                            logging.info(f'Value {value_str} at {key_str} '
-                                         f'read successfully.')
+                            logging.info(
+                                f"Value {value_str} at {key_str} read successfully."
+                            )
                         except ValueError:
-                            logging.warning(f'Skipping malformed line in '
-                                            f'{path} at {line}: Invalid key '
-                                            f'{key_str}')
+                            logging.warning(
+                                f"Skipping malformed line in "
+                                f"{path} at {line}: Invalid key "
+                                f"{key_str}"
+                            )
                     else:
-                        logging.warning(f'Skipping malformed line in {path} '
-                                        f'at {line}: Does not have two parts '
-                                        f'separated by a comma.')
+                        logging.warning(
+                            f"Skipping malformed line in {path} "
+                            f"at {line}: Does not have two parts "
+                            f"separated by a comma."
+                        )
         except FileNotFoundError:
-            logging.error(f'Error: File {path} not found.')
+            logging.error(f"Error: File {path} not found.")
         except Exception as e:
-            logging.error(f'An unexpected error occurred while reading {path}: '
-                          f'{e}')
-    logging.info(f'Finished fetching definitions. Found {len(definitions)} '
-                 f'definitions.')
+            logging.error(f"An unexpected error occurred while reading {path}: {e}")
+    logging.info(
+        f"Finished fetching definitions. Found {len(definitions)} definitions."
+    )
     return definitions
