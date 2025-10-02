@@ -15,8 +15,7 @@ class APIClient:
     requests, and parsing of JSON responses into Python objects.
     """
 
-    def __init__(self, config_path: Path) -> \
-            None:
+    def __init__(self, config_path: Path) -> None:
         """
         Initialize the APIClient instance.
 
