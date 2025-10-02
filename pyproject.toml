@@ -4,7 +4,10 @@ version = "0.1.0"
 description = "An ETL project that fetches data drom the Statistics Canada API, processes it, and stores it in a MySQL Database."
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "requests >= 2.32.5",
+    "mysql-connector-python==9.4.0"
+]
 
 [tool.ruff]
 lint.extend-select = ["PTH"]
