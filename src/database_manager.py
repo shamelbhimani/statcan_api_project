@@ -89,10 +89,9 @@ class DatabaseManager:
         :param table_name: Name of the table to check.
         :return: Bool indicating if the specified table exists.
         """
-        query = f"""
-                SHOW TABLES LIKE '{table_name}'
-                """
-        self.cursor.execute(query)
+        query = "SHOW TABLES LIKE %s"
+        params = (table_name,)
+        self.cursor.execute(query, params)
         return self.cursor.fetchone() is not None
 
     def _vector_exists(self, table_name: str, vector_id: int) -> bool:
@@ -104,12 +103,13 @@ class DatabaseManager:
         :param vector_id: ID of the vector to check.
         :return: Bool indicating if the specified vector exists.
         """
-        query = f"""
-                SELECT vector_id
-                FROM `{table_name}`
-                    WHERE vector_id = %s
-                """
-        self.cursor.execute(query, (vector_id,))
+        query = """
+                SELECT vector_id 
+                FROM `{}` 
+                WHERE vector_id = %s
+                """.format(table_name)
+        params = (vector_id,)
+        self.cursor.execute(query, params)
         return self.cursor.fetchone() is not None
 
     def _column_exists(self, table_name: str, date: str) -> bool:
@@ -127,8 +127,8 @@ class DatabaseManager:
             WHERE TABLE_NAME = %s AND 
             COLUMN_NAME = %s 
             """
-
-        self.cursor.execute(query, (table_name, date))
+        params = (table_name, date)
+        self.cursor.execute(query, params)
         return self.cursor.fetchone()[0] > 0
 
     def _values_match(
@@ -145,13 +145,13 @@ class DatabaseManager:
         :param value: Value to check.
         :return: Bool indicating if the specified value exists.
         """
-        date_column = f"`{date}`"
-        query = f"""
-                SELECT {date_column} 
-                FROM `{table_name}`
-                    WHERE vector_id = %s
-                """
-        self.cursor.execute(query, (vector_id,))
+        query = """
+                SELECT `{}` 
+                FROM `{}`
+                WHERE vector_id = %s
+                """.format(date, table_name)
+        params = (vector_id,)
+        self.cursor.execute(query, params)
         current_value = self.cursor.fetchone()[0]
         return current_value == value
 
@@ -165,13 +165,14 @@ class DatabaseManager:
         if not self._table_exists(table_name):
             logging.info(f"Creating table {table_name} with definition: {definition}")
             definition = definition.replace("'", "''")
-            query = f"""
-                    CREATE TABLE `{table_name}` (
+            query = """
+                    CREATE TABLE `{}` (
                     vector_id BIGINT NOT NULL PRIMARY KEY,
-                    definition TEXT )
-                        COMMENT = %s
-                    """
-            self.cursor.execute(query, (definition,))
+                    definition TEXT 
+                    ) COMMENT = %s
+                    """.format(table_name)
+            params = (definition,)
+            self.cursor.execute(query, params)
             self.stats["tables_created"] += 1
             logging.info(f"Table {table_name} created.")
         else:
@@ -188,11 +189,11 @@ class DatabaseManager:
         :param definition: Vector definition.
         """
         logging.info(f"Adding vector {vector_id} to table {table_name}...")
-        params = (vector_id, definition)
-        query = f"""
-                INSERT INTO `{table_name}`
+        query = """
+                INSERT INTO `{}`
                     (vector_id, definition) VALUES (%s, %s)
-                """
+                """.format(table_name)
+        params = (vector_id, definition)
         self.cursor.execute(query, params)
         logging.info("Vector added.")
         self.stats["vectors_added"] += 1
@@ -205,10 +206,10 @@ class DatabaseManager:
         :param date: Column to add.
         :return:
         """
-        query = f"""
-                ALTER TABLE `{table_name}`
-                    ADD COLUMN `{date}` FLOAT
-                """
+        query = """
+                ALTER TABLE `{}`
+                    ADD COLUMN `{}` FLOAT
+                """.format(table_name, date)
         self.cursor.execute(query)
         logging.info("Column added.")
         self.stats["columns_added"] += 1
@@ -225,12 +226,13 @@ class DatabaseManager:
         :param date: Name of the column to update.
         :param value: Value to update.
         """
-        query = f"""
-                UPDATE `{table_name}`
-                SET `{date}` = %s
+        query = """
+                UPDATE `{}`
+                SET `{}` = %s
                     WHERE vector_id = %s
-                """
-        self.cursor.execute(query, (value, vector_id))
+                """.format(table_name, date)
+        params = (value, vector_id)
+        self.cursor.execute(query, params)
 
     def _process_series(
         self, table_name: str, vector_id: int, series: dict[str, float]
