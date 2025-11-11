@@ -1,9 +1,10 @@
 import logging
 import sys
 from pathlib import Path
-from src.api_client import APIClient
-from src.definitions_fetcher import get_definitions
-from src.database_manager import run_process
+
+from api_client import APIClient
+from database_manager import run_process
+from definitions_fetcher import get_definitions
 
 
 def main():
