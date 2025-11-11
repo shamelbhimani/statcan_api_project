@@ -3,7 +3,39 @@ import requests
 import json
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Optional, List, Any
+from pydantic import BaseModel, ValidationError, Field
+
+
+class VectorDataPoint(BaseModel):
+    decimals: int
+    frequencyCode: int
+    refPer: str
+    refPer2: Optional[str]
+    refPerRaw: str
+    refPerRaw2: Optional[str]
+    releaseTime: str
+    scalarFactorCode: int
+    securityLevelCode: int
+    statusCode: int
+    symbolCode: int
+    value: Optional[float | None]
+
+class ObjectModel(BaseModel):
+    coordinate: str
+    productId: int
+    responseStatusCode: int
+    vectorDataPoint: List[VectorDataPoint]
+    vectorId: int
+
+class APIObject(BaseModel):
+    object: ObjectModel
+    status: str
+
+
+class APIResponseItem(BaseModel):
+    object: ObjectModel
+    status: str
 
 
 class APIClient:
@@ -91,7 +123,11 @@ class APIClient:
         )
         try:
             response = requests.post(
-                self.url, headers=headers, data=json.dumps(payload)
+                self.url,
+                headers=headers,
+                data=json.dumps(payload),
+                verify=True,
+                timeout=30,
             )
             response.raise_for_status()
             self.api_response = response.json()
@@ -112,44 +148,41 @@ class APIClient:
         logging.info("Extracting data from API response...")
         extracted_count = 0
         skipped_count = 0
-        for item in self.api_response:
-            if (
-                isinstance(item, dict)
-                and item.get("status") == "SUCCESS"
-                and "object" in item
-            ):
-                sub_data_dict = {}
-                for subitem in item["object"]["vectorDataPoint"]:
-                    sub_data_dict.update(
-                        {str(subitem.get("refPerRaw")): subitem.get("value")}
+        for i, item in enumerate(self.api_response):
+            try:
+                validated_item = APIResponseItem.model_validate(item)
+                if validated_item.status != "SUCCESS" or not validated_item.object:
+                    skipped_count += 1
+                    logging.warning(
+                        f"Skipping item {i}: status = {validated_item.status}, object = None"
                     )
+                    continue
+                sub_data_dict = {
+                    str(dp.refPerRaw): dp.value
+                    for dp in validated_item.object.vectorDataPoint
+                }
 
                 data_dict = {
-                    item["object"]["vectorId"]: self._sort_dictionary(
-                        sub_data_dict, False
+                    validated_item.object.vectorId: self._sort_dictionary(
+                        sub_data_dict,
+                        False,
                     )
                 }
 
-                if item["object"].get("productId") in self.extracted_data.keys():
-                    self.extracted_data[item["object"].get("productId")].update(
-                        data_dict
-                    )
+                product_id = validated_item.object.productId
+                if product_id in self.extracted_data:
+                    self.extracted_data[product_id].update(data_dict)
                 else:
-                    self.extracted_data.update(
-                        {item["object"].get("productId"): data_dict}
-                    )
+                    self.extracted_data[product_id] = data_dict
+
                 extracted_count += 1
                 logging.info(
-                    f"Added {item['object']['vectorId']} to"
-                    f" {item['object'].get('productId')}."
+                    f"Added vector {validated_item.object.vectorId} "
+                    f"under product {product_id}"
                 )
-            else:
+            except ValidationError as e:
                 skipped_count += 1
-                logging.warning(
-                    f"Skipping an item in response "
-                    f"Status: {item.get('status')}, "
-                    f"Object: {item.get('object')}"
-                )
+                logging.error(f"Validation failed for item {i}: {e.errors()}")
         logging.info(
             f"Data extracted from API response. Data extracted for "
             f"{extracted_count} items. Items skipped:"
@@ -175,7 +208,6 @@ class APIClient:
             return dict(
                 sorted(dictionary.items(), key=lambda item: item[0], reverse=True)
             )
-        return None
 
     def run(self, period: int = 1) -> None:
         """
