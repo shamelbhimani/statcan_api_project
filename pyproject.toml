@@ -6,7 +6,8 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "requests >= 2.32.5",
-    "mysql-connector-python==9.4.0"
+    "mysql-connector-python==9.4.0",
+    "pydantic>=2.12.4",
 ]
 
 [tool.ruff]
