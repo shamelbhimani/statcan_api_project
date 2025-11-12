@@ -5,6 +5,7 @@ from pathlib import Path
 from api_client import APIClient
 from database_manager import run_process
 from definitions_fetcher import get_definitions
+from sqlalchemy.exc import SQLAlchemyError
 
 
 def main():
@@ -39,6 +40,8 @@ def main():
             period = int(
                 input("Enter the period of the period you wish to extract data from: ")
             )
+            if not 1 <= period <= 360:
+                raise ValueError("Period must be between 1 and 360 months.")
         except ValueError:
             logging.error(f"Invalid input: {period}. Please enter an integer.")
             return
