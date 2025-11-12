@@ -4,7 +4,7 @@ import json
 import logging
 from pathlib import Path
 from typing import Optional, List, Any
-from pydantic import BaseModel, ValidationError, Field
+from pydantic import BaseModel, ValidationError
 
 
 class VectorDataPoint(BaseModel):
@@ -21,12 +21,14 @@ class VectorDataPoint(BaseModel):
     symbolCode: int
     value: Optional[float | None]
 
+
 class ObjectModel(BaseModel):
     coordinate: str
     productId: int
     responseStatusCode: int
     vectorDataPoint: List[VectorDataPoint]
     vectorId: int
+
 
 class APIObject(BaseModel):
     object: ObjectModel
