@@ -1,8 +1,11 @@
 import configparser
-import mysql.connector
 import logging
+import re
 from typing import Any
 from pathlib import Path
+from sqlalchemy import create_engine, text, MetaData
+from sqlalchemy.engine import Engine
+from sqlalchemy.exc import SQLAlchemyError
 
 
 class DatabaseManager:
@@ -10,6 +13,8 @@ class DatabaseManager:
     A class object to manage the MySQL database, including establishing and
     closing connections, creating tables, and inserting and updating tables.
     """
+
+    IDENTIFIER_PATTERN = re.compile(r"^[a-zA-Z0-9_]+$")
 
     def __init__(self, database_config_path: Path) -> None:
         """
@@ -25,6 +30,7 @@ class DatabaseManager:
         :except mysql.connector.Error: Raises an exception if an error occurs
         while connecting to the database.
         """
+
         config = configparser.ConfigParser()
         try:
             config.read(database_config_path)
@@ -34,10 +40,41 @@ class DatabaseManager:
                 f"Database configuration file not found at path:"
                 f" {database_config_path}."
             )
-        except (configparser.NoSectionError, configparser.NoOptionError) as e:
+        except (configparser.NoSectionError, configparser.NoOptionError):
             logging.error(
-                f"Database configuration error at path: {database_config_path}: {e}"
+                f"Database configuration error at path: {database_config_path}."
             )
+
+        try:
+            host = config.get("mysql", "host")
+            user = config.get("mysql", "user")
+            password = config.get("mysql", "password")
+            database = config.get("mysql", "database")
+        except (configparser.NoSectionError, configparser.NoOptionError) as e:
+            logging.error(f"Congiuration error {e}")
+            raise
+
+        connection_string = f"mysql+pymysql://{user}:{password}@{host}/{database}"
+
+        try:
+            self._engine: Engine = create_engine(
+                connection_string,
+                echo=False,
+                pool_pre_ping=True,
+                pool_recycle=3600,
+                connect_args={"timeout": 10},
+            )
+
+            with self._engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            logging.info(
+                f"MySQL connection established to {config.get('mysql', 'database')}"
+            )
+        except SQLAlchemyError as err:
+            logging.error(f"Error connecting to MySQL: {err}")
+            raise
+
+        self._metadata = MetaData()
 
         self.stats = {
             "tables_created": 0,
@@ -47,24 +84,6 @@ class DatabaseManager:
             "values_updated": 0,
         }
 
-        try:
-            self._conn = mysql.connector.connect(
-                host=config.get("mysql", "host"),
-                user=config.get("mysql", "user"),
-                password=config.get("mysql", "password"),
-                database=config.get("mysql", "database"),
-            )
-            self.cursor = self._conn.cursor()
-            logging.info(
-                f"MySQL connection established to {config.get('mysql', 'database')}"
-            )
-            logging.info(f"Logged in as {config.get('mysql', 'user')}")
-        except mysql.connector.Error as err:
-            logging.error(f"Error connecting to MySQL: {err}")
-            raise
-        except (configparser.NoSectionError, configparser.NoOptionError) as e:
-            logging.error(f"Configuration error at path {database_config_path}: {e}")
-
     def close_connection(self) -> None:
         """
         Closes the connection to the database.
@@ -72,15 +91,32 @@ class DatabaseManager:
         :raise Raises a warning if connection could not be closed due to a
         non-existent connection or if the connection was already closed.
         """
-        if self._conn is not None:
-            self.cursor.close()
-            self._conn.close()
+        if self._engine is not None:
+            self._engine.dispose()
             logging.debug("MySQL connection closed")
         else:
             logging.warning(
                 "Attempted to close a non-existent or already closed connection."
             )
             raise
+
+    @staticmethod
+    def _validate_identifier(identifier: str) -> None:
+        """
+        Validates that an identifier (table or column) only contains safe characters to prevent SQL injetions.
+
+        :params identifier: The identifier to validate.
+        :raises ValueError: If identifier contains invalid characters.
+        """
+        if not isinstance(identifier, str):
+            raise ValueError(
+                f"Identifier must be a string. Got {type(identifier)} instead."
+            )
+        if not DatabaseManager.IDENTIFIER_PATTERN.match(identifier):
+            raise ValueError(
+                f"Invalid identifier: {identifier}."
+                f"Only alphanumeric characters and underscores are allowed."
+            )
 
     def _table_exists(self, table_name: str) -> bool:
         """
@@ -89,10 +125,25 @@ class DatabaseManager:
         :param table_name: Name of the table to check.
         :return: Bool indicating if the specified table exists.
         """
-        query = "SHOW TABLES LIKE %s"
-        params = (table_name,)
-        self.cursor.execute(query, params)
-        return self.cursor.fetchone() is not None
+        self._validate_identifier(table_name)
+
+        try:
+            with self._engine.connect() as conn:
+                query = text(
+                    """
+                    SELECT 1
+                    FROM INFORMATION_SCHEMA.TABLES
+                    WHERE TABLE_SCHEMA = :db_name AND TABLE_NAME = :table_name
+                    """
+                )
+                result = conn.execute(
+                    query,
+                    {"db_name": self._engine.url.database, "table_name": table_name},
+                )
+                return result.fetchone() is not None
+        except SQLAlchemyError as e:
+            logging.error(f"Error checking if table exists: {e}")
+            return False
 
     def _vector_exists(self, table_name: str, vector_id: int) -> bool:
         """
@@ -103,14 +154,19 @@ class DatabaseManager:
         :param vector_id: ID of the vector to check.
         :return: Bool indicating if the specified vector exists.
         """
-        query = """
-                SELECT vector_id 
-                FROM `{}` 
-                WHERE vector_id = %s
-                """.format(table_name)
-        params = (vector_id,)
-        self.cursor.execute(query, params)
-        return self.cursor.fetchone() is not None
+        self._validate_identifier(table_name)
+        try:
+            with self._engine.connect() as conn:
+                query = text(f"""
+                    SELECT vector_id 
+                    FROM {table_name} 
+                    WHERE vector_id = :vector_id
+                    """)
+                result = conn.execute(query, {"vector_id": vector_id})
+                return result.fetchone() is not None
+        except SQLAlchemyError as e:
+            logging.error(f"Error checking if vector exists: {e}")
+            return False
 
     def _column_exists(self, table_name: str, date: str) -> bool:
         """
@@ -121,15 +177,23 @@ class DatabaseManager:
         :param date: Name of the column to check.
         :return: Bool indicating if the specified column exists.
         """
-        query = """
-            SELECT COUNT(*) 
-            FROM INFORMATION_SCHEMA.COLUMNS 
-            WHERE TABLE_NAME = %s AND 
-            COLUMN_NAME = %s 
-            """
-        params = (table_name, date)
-        self.cursor.execute(query, params)
-        return self.cursor.fetchone()[0] > 0
+        self._validate_identifier(table_name)
+        self._validate_identifier(date)
+        try:
+            with self._engine.connect() as conn:
+                query = text("""
+                    SELECT COUNT(*) 
+                    FROM INFORMATION_SCHEMA.COLUMNS 
+                    WHERE TABLE_NAME = :table_name AND 
+                    COLUMN_NAME = :date 
+                    """)
+                result = conn.execute(
+                    query, {"table_name": table_name, "column_name": date}
+                )
+                return result.scalar() > 0
+        except SQLAlchemyError as e:
+            logging.error(f"Error checking if column exists: {e}")
+            return False
 
     def _values_match(
         self, table_name: str, vector_id: int, date: str, value: float
@@ -145,41 +209,61 @@ class DatabaseManager:
         :param value: Value to check.
         :return: Bool indicating if the specified value exists.
         """
-        query = """
-                SELECT `{}` 
-                FROM `{}`
-                WHERE vector_id = %s
-                """.format(date, table_name)
-        params = (vector_id,)
-        self.cursor.execute(query, params)
-        current_value = self.cursor.fetchone()[0]
-        return current_value == value
+        self._validate_identifier(table_name)
+        self._validate_identifier(date)
 
-    def _create_table(self, table_name: str, definition: str = None) -> None:
+        try:
+            with self._engine.connect() as conn:
+                query = text(f"""
+                    SELECT `{date}` 
+                    FROM `{table_name}`
+                    WHERE vector_id = :vector_id
+                    """)
+                result = conn.execute(query, {"vector_id": vector_id})
+                row = result.fetchone()
+                if row is None:
+                    return False
+
+                current_value = row[0]
+                return current_value == value
+        except SQLAlchemyError:
+            logging.error(f"Error comparing values: {e}")
+            return False
+
+    def _create_table(self, table_name: str, definition: str = "No Definition") -> None:
         """
         Create a table with the specified definition.
 
         :param table_name: Name of the table to create.
         :param definition: Table definition.
         """
+        self._validate_identifier(table_name)
+
         if not self._table_exists(table_name):
             logging.info(f"Creating table {table_name} with definition: {definition}")
-            definition = definition.replace("'", "''")
-            query = """
-                    CREATE TABLE `{}` (
-                    vector_id BIGINT NOT NULL PRIMARY KEY,
-                    definition TEXT 
-                    ) COMMENT = %s
-                    """.format(table_name)
-            params = (definition,)
-            self.cursor.execute(query, params)
-            self.stats["tables_created"] += 1
-            logging.info(f"Table {table_name} created.")
+            try:
+                with self._engine.connect() as conn:
+                    safe_definition = (
+                        definition.replace("'", "''") if definition else ""
+                    )
+                    query = text(f"""
+                        CREATE TABLE `{table_name}` (
+                            vector_id BIGINT NOT NULL PRIMARY KEY,
+                            definition TEXT
+                            ) COMMENT = :definition
+                        """)
+
+                    conn.execute(query, {"definition": safe_definition})
+                    conn.commit()
+                self.stats["tables_created"] += 1
+                logging.info(f"Table {table_name} created.")
+            except SQLAlchemyError:
+                logging.error(f"Error creating table {table_name}: {e}")
         else:
             logging.info(f"Table {table_name} already exists. Skipping creation...")
 
     def _add_vector(
-        self, table_name: str, vector_id: int, definition: str = None
+        self, table_name: str, vector_id: int, definition: str = "No Definition"
     ) -> None:
         """
         Add a vector and its definition to the specified table.
@@ -188,15 +272,27 @@ class DatabaseManager:
         :param vector_id: ID of the vector to add.
         :param definition: Vector definition.
         """
+        self._validate_identifier(table_name)
         logging.info(f"Adding vector {vector_id} to table {table_name}...")
-        query = """
-                INSERT INTO `{}`
-                    (vector_id, definition) VALUES (%s, %s)
-                """.format(table_name)
-        params = (vector_id, definition)
-        self.cursor.execute(query, params)
-        logging.info("Vector added.")
-        self.stats["vectors_added"] += 1
+        try:
+            with self._engine.connect() as conn:
+                query = text(f"""
+                    INSERT INTO `{table_name}`
+                        (vector_id, definition) VALUES (:vector_id, :definition)
+                    """)
+                conn.execute(
+                    query,
+                    {
+                        "vector_id": vector_id,
+                        "definition": definition or "No Definition",
+                    },
+                )
+                conn.commit()
+            logging.info("Vector added.")
+            self.stats["vectors_added"] += 1
+        except SQLAlchemyError as e:
+            logging.error(f"Error adding vector {vector_id}: {e}")
+            raise
 
     def _add_column(self, table_name: str, date: str) -> None:
         """
@@ -206,13 +302,22 @@ class DatabaseManager:
         :param date: Column to add.
         :return:
         """
-        query = """
-                ALTER TABLE `{}`
-                    ADD COLUMN `{}` FLOAT
-                """.format(table_name, date)
-        self.cursor.execute(query)
-        logging.info("Column added.")
-        self.stats["columns_added"] += 1
+        self._validate_identifier(table_name)
+        self._validate_identifier(date)
+
+        try:
+            with self._engine.connect() as conn:
+                query = text(f"""
+                    ALTER TABLE `{table_name}`
+                    ADD COLUMN `{date}`
+                    """)
+                conn.execute(query)
+                conn.commit()
+            logging.info("Column added.")
+            self.stats["columns_added"] += 1
+        except SQLAlchemyError as e:
+            logging.error(f"Error adding column {date}: {e}")
+            raise
 
     def _update_value(
         self, table_name: str, vector_id: int, date: str, value: float
@@ -226,13 +331,21 @@ class DatabaseManager:
         :param date: Name of the column to update.
         :param value: Value to update.
         """
-        query = """
-                UPDATE `{}`
-                SET `{}` = %s
-                    WHERE vector_id = %s
-                """.format(table_name, date)
-        params = (value, vector_id)
-        self.cursor.execute(query, params)
+        self._validate_identifier(table_name)
+        self._validate_identifier(date)
+
+        try:
+            with self._engine.connect() as conn:
+                query = text(f"""
+                    UPDATE `{table_name}`
+                    SET `{date}` = :value
+                    WHERE vector_id = :vector_id
+                    """)
+                conn.execute(query, {"date": value, "vector_id": vector_id})
+                conn.commit()
+        except SQLAlchemyError as e:
+            logging.error(f"Error updating value: {e}")
+            raise
 
     def _process_series(
         self, table_name: str, vector_id: int, series: dict[str, float]
@@ -245,6 +358,12 @@ class DatabaseManager:
         :param series: Series to process.
         """
         for date, value in series.items():
+            try:
+                self._validate_identifier(date)
+            except ValueError as e:
+                logging.warning(f"Skipping invalid date column '{date}': {e}")
+                continue
+
             if not self._column_exists(table_name, date):
                 logging.debug(f"Column {date} does not exist.")
                 self._add_column(table_name, date)
@@ -327,23 +446,33 @@ class DatabaseManager:
         and vectors.
         """
         logging.info("Starting database update...")
-        for product_id, vectors in data.items():
-            table_name = f"{product_id}"
-            product_definition = definitions.get(product_id, "No Definition")
-            if product_definition == "No Definition":
-                logging.info(f"No definition found for product {product_id}")
-            else:
-                logging.info(
-                    f"Product {product_id} definition found: {product_definition}"
-                )
-            self._create_table(table_name, product_definition)
 
-            for vector_id, series in vectors.items():
-                self._process_vector(table_name, vector_id, series, definitions)
+        try:
+            for product_id, vectors in data.items():
+                table_name = str(product_id)
+                try:
+                    self._validate_identifier(table_name)
+                except ValueError:
+                    logging.error(f"Skipping invalid product_id {product_id}")
+                    continue
 
-        self._conn.commit()
-        logging.info("Database updates completed.")
-        self._log_stats()
+                product_definition = definitions.get(product_id, "No Definition")
+
+                if product_definition == "No Definition":
+                    logging.info(f"No definition found for product {product_id}")
+                else:
+                    logging.info(
+                        f"Product {product_id} definition found: {product_definition}"
+                    )
+                self._create_table(table_name, product_definition)
+
+                for vector_id, series in vectors.items():
+                    self._process_vector(table_name, vector_id, series, definitions)
+            logging.info("Database updates completed.")
+            self._log_stats()
+        except SQLAlchemyError as e:
+            logging.error(f"Database error during update: {e}")
+            raise
 
 
 def run_process(
@@ -364,12 +493,12 @@ def run_process(
     try:
         db = DatabaseManager(database_config_path)
         db.update_database(data, definitions)
-        db.close_connection()
-    except mysql.connector.Error as err:
-        logging.critical(f"A critical error occurred in the database manager: {err}")
-        if db and db._conn.is_connected():
-            db._conn.rollback()
-            logging.info("Database transactions was rolled back.")
+    except SQLAlchemyError as err:
+        logging.critical(f"A critical database error ocurred: {err}")
+        raise
+    except Exception as e:
+        logging.critical(f"An unexpected error occurred: {e}")
+        raise
     finally:
         if db:
             db.close_connection()
